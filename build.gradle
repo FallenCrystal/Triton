@@ -72,7 +72,7 @@ bukkit {
     main = 'com.rexcantor64.triton.plugin.SpigotPlugin'
     apiVersion = pluginApiVersion
 
-    depend = ['ProtocolLib']
+    depend = ['ProtocolLib', "packetevents"]
     softDepend = ['PlaceholderAPI']
 
     commands {

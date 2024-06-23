@@ -11,6 +11,10 @@ public class AdventureComponentWrapper {
         return ComponentSerializer.parse(toJson(component));
     }
 
+    public static Component fromMd5Component(BaseComponent[] components) {
+        return GsonComponentSerializer.gson().deserialize(ComponentSerializer.toString(components));
+    }
+
     public static String toJson(Object component) {
         return GsonComponentSerializer.gson().serialize((Component) component);
     }

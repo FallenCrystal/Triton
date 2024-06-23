@@ -1,9 +1,11 @@
 package com.rexcantor64.triton.plugin;
 
+import com.github.retrooper.packetevents.PacketEvents;
 import com.rexcantor64.triton.SpigotMLP;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.logger.JavaLogger;
 import com.rexcantor64.triton.logger.TritonLogger;
+import com.rexcantor64.triton.packetinterceptor.pe.PacketEventsHandler;
 import com.rexcantor64.triton.terminal.Log4jInjector;
 import org.bukkit.plugin.java.JavaPlugin;
 
@@ -22,6 +24,9 @@ public class SpigotPlugin extends JavaPlugin implements PluginLoader {
     public void onDisable() {
         if (Triton.get().getConf().isTerminal())
             Log4jInjector.uninjectAppender();
+        if (PacketEventsHandler.getInstance() != null) {
+            PacketEvents.getAPI().getEventManager().unregisterListener(PacketEventsHandler.getInstance());
+        }
     }
 
     @Override

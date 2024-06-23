@@ -10,10 +10,7 @@ import com.rexcantor64.triton.language.ExecutableCommand;
 import com.rexcantor64.triton.language.item.SignLocation;
 import com.rexcantor64.triton.packetinterceptor.PacketInterceptor;
 import com.rexcantor64.triton.storage.LocalStorage;
-import lombok.AllArgsConstructor;
-import lombok.Data;
-import lombok.Getter;
-import lombok.val;
+import lombok.*;
 import org.bukkit.Bukkit;
 import org.bukkit.ChatColor;
 import org.bukkit.World;
@@ -39,7 +36,9 @@ public class SpigotLanguagePlayer implements LanguagePlayer {
 
     private Language lang;
 
+    @Setter
     private String lastTabHeader;
+    @Setter
     private String lastTabFooter;
     private Map<UUID, String> bossBars = new ConcurrentHashMap<>();
     private boolean waitingForClientLocale = false;
@@ -198,14 +197,6 @@ public class SpigotLanguagePlayer implements LanguagePlayer {
     public void onWorldChange() {
         this.signs.clear();
         this.legacySigns.clear();
-    }
-
-    public void setLastTabHeader(String lastTabHeader) {
-        this.lastTabHeader = lastTabHeader;
-    }
-
-    public void setLastTabFooter(String lastTabFooter) {
-        this.lastTabFooter = lastTabFooter;
     }
 
     public void setBossbar(UUID uuid, String lastBossBar) {

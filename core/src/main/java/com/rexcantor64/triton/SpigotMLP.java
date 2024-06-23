@@ -2,6 +2,7 @@ package com.rexcantor64.triton;
 
 import com.comphenix.protocol.ProtocolLibrary;
 import com.comphenix.protocol.utility.MinecraftVersion;
+import com.github.retrooper.packetevents.PacketEvents;
 import com.rexcantor64.triton.api.players.LanguagePlayer;
 import com.rexcantor64.triton.bridge.SpigotBridgeManager;
 import com.rexcantor64.triton.commands.handler.SpigotCommandHandler;
@@ -10,6 +11,7 @@ import com.rexcantor64.triton.guiapi.GuiManager;
 import com.rexcantor64.triton.guiapi.ScrollableGui;
 import com.rexcantor64.triton.listeners.BukkitListener;
 import com.rexcantor64.triton.packetinterceptor.ProtocolLibListener;
+import com.rexcantor64.triton.packetinterceptor.pe.PacketEventsHandler;
 import com.rexcantor64.triton.packetinterceptor.protocollib.HandlerFunction;
 import com.rexcantor64.triton.packetinterceptor.protocollib.MotdPacketHandler;
 import com.rexcantor64.triton.placeholderapi.TritonPlaceholderHook;
@@ -40,7 +42,9 @@ import java.util.concurrent.ExecutionException;
 
 public class SpigotMLP extends Triton {
 
+    @Getter
     private ProtocolLibListener protocolLibListener;
+    @Getter
     private SpigotBridgeManager bridgeManager;
     @Getter
     private MaterialWrapperManager wrapperManager;
@@ -85,15 +89,20 @@ public class SpigotMLP extends Triton {
         Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getLoader());
         Bukkit.getPluginManager().registerEvents(new BukkitListener(), getLoader());
 
-        // Setup ProtocolLib
-        if (getConfig().isAsyncProtocolLib()) {
-            val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
-            asyncManager.registerAsyncHandler(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC)).start();
-            asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
-            ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
+        // Setup PacketEvents/ProtocolLib
+        if (Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
+            getLogger().logWarning("Using PacketEvents for handle. Some features may break.");
+            PacketEvents.getAPI().getEventManager().registerListener(new PacketEventsHandler(this));
         } else {
-            ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC));
-            ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
+            if (getConfig().isAsyncProtocolLib()) {
+                val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
+                asyncManager.registerAsyncHandler(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC)).start();
+                asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
+                ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
+            } else {
+                ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC));
+                ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
+            }
         }
 
         if (getConf().isBungeecord()) {
@@ -176,16 +185,8 @@ public class SpigotMLP extends Triton {
         return true;
     }
 
-    public ProtocolLibListener getProtocolLibListener() {
-        return protocolLibListener;
-    }
-
     public File getDataFolder() {
         return getLoader().getDataFolder();
-    }
-
-    public SpigotBridgeManager getBridgeManager() {
-        return bridgeManager;
     }
 
     public void openLanguagesSelectionGUI(LanguagePlayer p) {
