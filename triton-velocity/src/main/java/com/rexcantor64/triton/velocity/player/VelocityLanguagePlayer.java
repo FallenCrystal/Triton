@@ -132,9 +132,9 @@ public class VelocityLanguagePlayer implements LanguagePlayer {
     public void injectNettyPipeline() {
         ConnectedPlayer connectedPlayer = (ConnectedPlayer) this.parent;
         connectedPlayer.getConnection().getChannel().pipeline()
-                .addAfter(Connections.MINECRAFT_DECODER, "triton-custom-decoder", new VelocityNettyDecoder(this));
+                .addBefore(Connections.MINECRAFT_DECODER, "triton-custom-decoder", new VelocityNettyDecoder(this));
         connectedPlayer.getConnection().getChannel().pipeline()
-                .addAfter(Connections.MINECRAFT_ENCODER, "triton-custom-encoder", new VelocityNettyEncoder(this));
+                .addBefore(Connections.MINECRAFT_ENCODER, "triton-custom-encoder", new VelocityNettyEncoder(this));
     }
 
     @Override

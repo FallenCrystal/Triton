@@ -3,18 +3,14 @@ package com.rexcantor64.triton.velocity.packetinterceptor.packets;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.config.FeatureSyntax;
 import com.rexcantor64.triton.api.language.MessageParser;
+import com.rexcantor64.triton.velocity.packetinterceptor.SimplePacketWrapper;
 import com.rexcantor64.triton.velocity.player.VelocityLanguagePlayer;
-import com.rexcantor64.triton.velocity.utils.ComponentUtils;
-import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.ComponentHolder;
 import com.velocitypowered.proxy.protocol.packet.title.GenericTitlePacket;
 import com.velocitypowered.proxy.protocol.packet.title.LegacyTitlePacket;
 import com.velocitypowered.proxy.protocol.packet.title.TitleActionbarPacket;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Objects;
-import java.util.Optional;
 
 public class TitleHandler {
 
@@ -45,39 +41,39 @@ public class TitleHandler {
         return titlePacket instanceof TitleActionbarPacket;
     }
 
-    public @NotNull Optional<MinecraftPacket> handleGenericTitle(@NotNull GenericTitlePacket titlePacket, @NotNull VelocityLanguagePlayer player) {
+    public boolean handleGenericTitle(
+            @NotNull GenericTitlePacket titlePacket,
+            @NotNull VelocityLanguagePlayer player
+    ) {
         val isActionBarPacket = isActionBarPacket(titlePacket);
         if (isActionBarPacket ? shouldNotTranslateActionBars() : shouldNotTranslateTitles()) {
-            return Optional.of(titlePacket);
+            return false;
         }
 
-        return Objects.requireNonNull(
-                parser().translateComponent(
-                                titlePacket.getComponent().getComponent(),
-                                player,
-                                isActionBarPacket ? getActionBarSyntax() : getTitleSyntax()
-                        )
-                        .map(result -> new ComponentHolder(player.getProtocolVersion(), result))
-                        .mapToObj(
-                                result -> {
-                                    titlePacket.setComponent(result);
-                                    return Optional.of(titlePacket);
-                                },
-                                () -> Optional.of(titlePacket),
-                                Optional::empty
-                        )
-        );
+        val modified = parser()
+                .translateComponent(
+                        titlePacket.getComponent().getComponent(),
+                        player,
+                        isActionBarPacket ? getActionBarSyntax() : getTitleSyntax()
+                )
+                .map(result -> new ComponentHolder(player.getProtocolVersion(), result))
+                .mapToObj(
+                        result -> {
+                            titlePacket.setComponent(result);
+                            return titlePacket;
+                        },
+                        () -> titlePacket,
+                        () -> null
+                );
+        return modified == null;
     }
 
-    public @NotNull Optional<MinecraftPacket> handleLegacyTitle(@NotNull LegacyTitlePacket titlePacket, @NotNull VelocityLanguagePlayer player) {
-        val action = titlePacket.getAction();
-        switch (action) {
-            case SET_TITLE:
-            case SET_SUBTITLE:
-            case SET_ACTION_BAR:
-                return handleGenericTitle(titlePacket, player);
-            default:
-                return Optional.of(titlePacket);
-        }
+    public <T extends GenericTitlePacket> void handle(final @NotNull SimplePacketWrapper<T> wrapper, final @NotNull VelocityLanguagePlayer player) {
+        wrapper.setCancelled(handleGenericTitle(wrapper.getPacket(), player));
+    }
+
+    public void handleLegacy(final @NotNull SimplePacketWrapper<LegacyTitlePacket> wrapper, final @NotNull VelocityLanguagePlayer player) {
+        if (wrapper.getPacket().getAction().ordinal() < 3)  // SET_TITLE SET_SUBTITLE, SET_ACTION_BAR,
+            handle(wrapper, player);
     }
 }

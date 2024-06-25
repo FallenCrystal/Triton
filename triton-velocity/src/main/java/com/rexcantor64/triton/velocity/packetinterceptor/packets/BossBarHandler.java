@@ -3,15 +3,13 @@ package com.rexcantor64.triton.velocity.packetinterceptor.packets;
 import com.rexcantor64.triton.Triton;
 import com.rexcantor64.triton.api.config.FeatureSyntax;
 import com.rexcantor64.triton.api.language.MessageParser;
+import com.rexcantor64.triton.velocity.packetinterceptor.SimplePacketWrapper;
 import com.rexcantor64.triton.velocity.player.VelocityLanguagePlayer;
-import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import com.velocitypowered.proxy.protocol.packet.BossBarPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.ComponentHolder;
 import lombok.val;
 import net.kyori.adventure.text.Component;
 import org.jetbrains.annotations.NotNull;
-
-import java.util.Optional;
 
 public class BossBarHandler {
 
@@ -29,33 +27,35 @@ public class BossBarHandler {
     }
 
 
-    public @NotNull Optional<MinecraftPacket> handleBossBar(@NotNull BossBarPacket bossBarPacket, @NotNull VelocityLanguagePlayer player) {
+    public void handleBossBar(
+            @NotNull SimplePacketWrapper<BossBarPacket> wrapper,
+            @NotNull VelocityLanguagePlayer player
+    ) {
         if (shouldNotTranslateBossBars()) {
-            return Optional.of(bossBarPacket);
+            return;
         }
 
-        val uuid = bossBarPacket.getUuid();
-        val action = bossBarPacket.getAction();
+        val packet = wrapper.getPacket();
+        val action = packet.getAction();
 
         if (action == BossBarPacket.REMOVE) {
-            player.removeBossbar(uuid);
-            return Optional.of(bossBarPacket);
+            player.removeBossbar(packet.getUuid());
+            return;
         }
 
-        val text = bossBarPacket.getName();
+        val text = packet.getName();
         if (text != null && (action == BossBarPacket.ADD || action == BossBarPacket.UPDATE_NAME)) {
-            player.setBossbar(uuid, bossBarPacket.getName().getComponent());
+            player.setBossbar(packet.getUuid(), packet.getName().getComponent());
 
             parser()
                     .translateComponent(
-                            bossBarPacket.getName().getComponent(),
+                            packet.getName().getComponent(),
                             player,
                             getBossBarSyntax()
                     )
                     .getResultOrToRemove(Component::empty)
                     .map(result -> new ComponentHolder(player.getProtocolVersion(), result))
-                    .ifPresent(bossBarPacket::setName);
+                    .ifPresent(packet::setName);
         }
-        return Optional.of(bossBarPacket);
     }
 }

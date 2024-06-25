@@ -1,20 +1,9 @@
 package com.rexcantor64.triton.velocity.packetinterceptor;
 
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.BossBarHandler;
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.ChatHandler;
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.DisconnectHandler;
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.ResourcePackHandler;
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.TabHandler;
-import com.rexcantor64.triton.velocity.packetinterceptor.packets.TitleHandler;
+import com.rexcantor64.triton.velocity.packetinterceptor.packets.*;
 import com.rexcantor64.triton.velocity.player.VelocityLanguagePlayer;
 import com.velocitypowered.proxy.protocol.MinecraftPacket;
-import com.velocitypowered.proxy.protocol.packet.BossBarPacket;
-import com.velocitypowered.proxy.protocol.packet.DisconnectPacket;
-import com.velocitypowered.proxy.protocol.packet.HeaderAndFooterPacket;
-import com.velocitypowered.proxy.protocol.packet.LegacyPlayerListItemPacket;
-import com.velocitypowered.proxy.protocol.packet.RemovePlayerInfoPacket;
-import com.velocitypowered.proxy.protocol.packet.ResourcePackRequestPacket;
-import com.velocitypowered.proxy.protocol.packet.UpsertPlayerInfoPacket;
+import com.velocitypowered.proxy.protocol.packet.*;
 import com.velocitypowered.proxy.protocol.packet.chat.SystemChatPacket;
 import com.velocitypowered.proxy.protocol.packet.chat.legacy.LegacyChatPacket;
 import com.velocitypowered.proxy.protocol.packet.title.LegacyTitlePacket;
@@ -22,71 +11,92 @@ import com.velocitypowered.proxy.protocol.packet.title.TitleActionbarPacket;
 import com.velocitypowered.proxy.protocol.packet.title.TitleSubtitlePacket;
 import com.velocitypowered.proxy.protocol.packet.title.TitleTextPacket;
 import io.netty.channel.ChannelHandlerContext;
-import io.netty.handler.codec.MessageToMessageEncoder;
-import io.netty.util.ReferenceCounted;
+import io.netty.channel.ChannelOutboundHandlerAdapter;
+import io.netty.channel.ChannelPromise;
 import lombok.RequiredArgsConstructor;
 import lombok.val;
 import org.jetbrains.annotations.NotNull;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.HashMap;
-import java.util.List;
+import java.util.HashSet;
 import java.util.Map;
-import java.util.Optional;
-import java.util.function.BiFunction;
+import java.util.Set;
 
 @RequiredArgsConstructor
-public class VelocityNettyEncoder extends MessageToMessageEncoder<MinecraftPacket> {
+public class VelocityNettyEncoder extends ChannelOutboundHandlerAdapter {
 
     private final VelocityLanguagePlayer player;
-    private static final Map<Class<?>, BiFunction<?, VelocityLanguagePlayer, Optional<MinecraftPacket>>> handlerMap = new HashMap<>();
+    private static final Set<PacketHandler<?>> handler = new HashSet<>();
+    private static final Map<Class<?>, PacketHandler<?>> handlerMap = new HashMap<>();
+
+    @RequiredArgsConstructor
+    private static final class PacketHandler<T extends MinecraftPacket> {
+        private final @NotNull Class<T> packetClass;
+        private final @NotNull PacketConsumer<T> consumer;
+
+        public @NotNull SimplePacketWrapper<T> handle(final @NotNull T packet, final @NotNull VelocityLanguagePlayer player) {
+            final @NotNull SimplePacketWrapper<T> wrapper = new SimplePacketWrapper<>(packet);
+            consumer.handle(wrapper, player);
+            return wrapper;
+        }
+
+        @SuppressWarnings("unchecked")
+        public @Nullable SimplePacketWrapper<?> handleGeneric(final @NotNull MinecraftPacket packet, final @NotNull VelocityLanguagePlayer player) {
+            if (packetClass != packet.getClass()) {
+                return null;
+            }
+            return handle((T) packet, player);
+        }
+
+        interface PacketConsumer<T extends MinecraftPacket> {
+            void handle(final @NotNull SimplePacketWrapper<T> wrapper, final @NotNull VelocityLanguagePlayer player);
+        }
+    }
 
     static {
         val chatHandler = new ChatHandler();
-        addHandler(SystemChatPacket.class, chatHandler::handleSystemChat);
-        addHandler(LegacyChatPacket.class, chatHandler::handleLegacyChat);
+        handler.add(new PacketHandler<>(SystemChatPacket.class, chatHandler::handleSystemChat));
+        handler.add(new PacketHandler<>(LegacyChatPacket.class, chatHandler::handleLegacyChat));
 
         val titleHandler = new TitleHandler();
-        addHandler(TitleTextPacket.class, titleHandler::handleGenericTitle);
-        addHandler(TitleSubtitlePacket.class, titleHandler::handleGenericTitle);
-        addHandler(TitleActionbarPacket.class, titleHandler::handleGenericTitle);
-        addHandler(LegacyTitlePacket.class, titleHandler::handleLegacyTitle);
+        handler.add(new PacketHandler<>(TitleTextPacket.class, titleHandler::handle));
+        handler.add(new PacketHandler<>(TitleSubtitlePacket.class, titleHandler::handle));
+        handler.add(new PacketHandler<>(TitleActionbarPacket.class, titleHandler::handle));
+        handler.add(new PacketHandler<>(LegacyTitlePacket.class, titleHandler::handleLegacy));
 
         val tabHandler = new TabHandler();
-        addHandler(HeaderAndFooterPacket.class, tabHandler::handlePlayerListHeaderFooter);
-        addHandler(LegacyPlayerListItemPacket.class, tabHandler::handlePlayerListItem);
-        addHandler(UpsertPlayerInfoPacket.class, tabHandler::handleUpsertPlayerInfo);
-        addHandler(RemovePlayerInfoPacket.class, tabHandler::handleRemovePlayerInfo);
+        handler.add(new PacketHandler<>(HeaderAndFooterPacket.class, tabHandler::handlePlayerListHeaderFooter));
+        handler.add(new PacketHandler<>(LegacyPlayerListItemPacket.class, tabHandler::handlePlayerListItem));
+        handler.add(new PacketHandler<>(UpsertPlayerInfoPacket.class, tabHandler::handleUpsertPlayerInfo));
+        handler.add(new PacketHandler<>(RemovePlayerInfoPacket.class, tabHandler::handleRemovePlayerInfo));
 
-        addHandler(DisconnectPacket.class, new DisconnectHandler()::handleDisconnect);
-        addHandler(ResourcePackRequestPacket.class, new ResourcePackHandler()::handleResourcePackRequest);
-        addHandler(BossBarPacket.class, new BossBarHandler()::handleBossBar);
-    }
+        handler.add(new PacketHandler<>(DisconnectPacket.class, new DisconnectHandler()::handleDisconnect));
+        handler.add(new PacketHandler<>(ResourcePackRequestPacket.class, new ResourcePackHandler()::handleResourcePackRequest));
+        handler.add(new PacketHandler<>(BossBarPacket.class, new BossBarHandler()::handleBossBar));
 
-    private static <T extends MinecraftPacket> void addHandler(final @NotNull Class<T> type, final @NotNull BiFunction<@NotNull T, @NotNull VelocityLanguagePlayer, @NotNull Optional<MinecraftPacket>> handler) {
-        handlerMap.put(type, handler);
+        for (final PacketHandler<?> handler : handler) {
+            handlerMap.put(handler.packetClass, handler);
+        }
     }
 
     @Override
-    protected void encode(ChannelHandlerContext ctx, MinecraftPacket packet, List<Object> out) {
-        if (packet instanceof ReferenceCounted) {
-            // We need to retain the packet since we're just passing them through, otherwise Netty will throw an error
-            ((ReferenceCounted) packet).retain();
-            out.add(packet);
-            return;
-        }
-        @SuppressWarnings("unchecked")
-        val handler = (BiFunction<MinecraftPacket, VelocityLanguagePlayer, Optional<MinecraftPacket>>) handlerMap.get(packet.getClass());
-        if (handler != null) {
-            Optional<MinecraftPacket> result = handler.apply(packet, this.player);
-            if (result.isPresent()) {
-                out.add(result.get());
-            } else {
-                // Discard the packet
-                out.add(false);
+    public void write(ChannelHandlerContext ctx, Object msg, ChannelPromise promise) throws Exception {
+        if (msg instanceof MinecraftPacket) {
+            val packet = (MinecraftPacket) msg;
+            val handler = handlerMap.get(packet.getClass());
+            if (handler != null) {
+                val wrapper = handler.handleGeneric(packet, player);
+                if (wrapper != null) {
+                    if (wrapper.isCancelled()) {
+                        return;
+                    } else if (wrapper.isModified()) {
+                        super.write(ctx, wrapper.getModifiedPacket(), promise);
+                        return;
+                    }
+                }
             }
-        } else {
-            out.add(packet);
         }
+        super.write(ctx, msg, promise);
     }
-
 }
