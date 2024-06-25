@@ -190,6 +190,7 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
         wrapper.setComponent(gson.toJsonTree(motdInfo).getAsJsonObject());
     }
 
+    // https://github.com/retrooper/packetevents/pull/844
     public void handleSystemChat(
             final @NotNull PacketPlaySendEvent event,
             final @NotNull WrapperPlayServerSystemChatMessage wrapper,

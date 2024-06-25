@@ -228,14 +228,14 @@ public class ItemStackTranslationUtils {
 
     private static @NotNull ItemStack translateBukkitItemStack(@NotNull ItemStack item, @NotNull Localized languagePlayer) {
         if (item.hasItemMeta()) {
-            ItemMeta meta = item.getItemMeta();
+            ItemMeta meta = Objects.requireNonNull(item.getItemMeta());
             if (meta.hasDisplayName()) {
                 meta.setDisplayName(translate(meta.getDisplayName(),
                         languagePlayer, main().getConf().getItemsSyntax()));
             }
             if (meta.hasLore()) {
                 List<String> newLore = new ArrayList<>();
-                for (String lore : meta.getLore()) {
+                for (String lore : Objects.requireNonNull(meta.getLore())) {
                     String result = translate(lore, languagePlayer,
                             main().getConf().getItemsSyntax());
                     if (result != null)
@@ -256,66 +256,70 @@ public class ItemStackTranslationUtils {
      * @param translateLore  Whether to attempt to translate the lore of the item
      */
     public static void translateNbtItem(@NotNull NbtCompound compound, @NotNull Localized languagePlayer, boolean translateLore) {
-        if (!compound.containsKey("display")) {
-            return;
-        }
-
-        NbtCompound display = compound.getCompoundOrDefault("display");
-        if (display.containsKey("Name")) {
-            String name = display.getStringOrDefault("Name");
-            try {
-                BaseComponent[] result = main().getLanguageParser()
-                        .parseComponent(
-                                languagePlayer,
-                                main().getConf().getItemsSyntax(),
-                                parseJsonComponent(name)
-                        );
-                if (result == null) {
-                    display.remove("Name");
-                } else {
-                    display.put("Name", ComponentSerializer.toString(ComponentUtils.ensureNotItalic(Arrays.stream(result))));
-                }
-            } catch (JsonParseException e) {
-                String result = translate(name, languagePlayer, main().getConf().getItemsSyntax());
-                if (result == null) {
-                    display.remove("Name");
-                } else {
-                    display.put("Name", result);
-                }
+        try {
+            if (!compound.containsKey("display")) {
+                return;
             }
-        }
 
-        if (translateLore && display.containsKey("Lore")) {
-            NbtList<String> loreNbt = display.getListOrDefault("Lore");
-
-            List<String> newLore = new ArrayList<>();
-            for (String lore : loreNbt) {
+            NbtCompound display = compound.getCompoundOrDefault("display");
+            if (display.containsKey("Name")) {
+                String name = display.getStringOrDefault("Name");
                 try {
                     BaseComponent[] result = main().getLanguageParser()
                             .parseComponent(
                                     languagePlayer,
                                     main().getConf().getItemsSyntax(),
-                                    parseJsonComponent(lore)
+                                    parseJsonComponent(name)
                             );
-                    if (result != null) {
-                        List<List<BaseComponent>> splitLoreLines = ComponentUtils.splitByNewLine(Arrays.asList(result));
-                        newLore.addAll(splitLoreLines.stream()
-                                .map(comps -> ComponentUtils.ensureNotItalic(comps.stream()))
-                                .map(ComponentSerializer::toString)
-                                .collect(Collectors.toList()));
+                    if (result == null) {
+                        display.remove("Name");
+                    } else {
+                        display.put("Name", ComponentSerializer.toString(ComponentUtils.ensureNotItalic(Arrays.stream(result))));
                     }
                 } catch (JsonParseException e) {
-                    String result = translate(
-                            lore,
-                            languagePlayer,
-                            main().getConf().getItemsSyntax()
-                    );
-                    if (result != null) {
-                        newLore.addAll(Arrays.asList(result.split("\n")));
+                    String result = translate(name, languagePlayer, main().getConf().getItemsSyntax());
+                    if (result == null) {
+                        display.remove("Name");
+                    } else {
+                        display.put("Name", result);
                     }
                 }
             }
-            display.put(NbtFactory.ofList("Lore", newLore));
+
+            if (translateLore && display.containsKey("Lore")) {
+                NbtList<String> loreNbt = display.getListOrDefault("Lore");
+
+                List<String> newLore = new ArrayList<>();
+                for (String lore : loreNbt) {
+                    try {
+                        BaseComponent[] result = main().getLanguageParser()
+                                .parseComponent(
+                                        languagePlayer,
+                                        main().getConf().getItemsSyntax(),
+                                        parseJsonComponent(lore)
+                                );
+                        if (result != null) {
+                            List<List<BaseComponent>> splitLoreLines = ComponentUtils.splitByNewLine(Arrays.asList(result));
+                            newLore.addAll(splitLoreLines.stream()
+                                    .map(comps -> ComponentUtils.ensureNotItalic(comps.stream()))
+                                    .map(ComponentSerializer::toString)
+                                    .collect(Collectors.toList()));
+                        }
+                    } catch (JsonParseException e) {
+                        String result = translate(
+                                lore,
+                                languagePlayer,
+                                main().getConf().getItemsSyntax()
+                        );
+                        if (result != null) {
+                            newLore.addAll(Arrays.asList(result.split("\n")));
+                        }
+                    }
+                }
+                display.put(NbtFactory.ofList("Lore", newLore));
+            }
+        } catch (final Exception e) {
+            Triton.get().getLogger().logDebug("Failed to parse item compound. There has wrong nbt/compound written? %1 for player %2", compound, languagePlayer);
         }
     }
 
