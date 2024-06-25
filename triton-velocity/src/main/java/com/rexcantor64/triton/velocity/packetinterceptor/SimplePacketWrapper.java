@@ -4,11 +4,13 @@ import com.velocitypowered.proxy.protocol.MinecraftPacket;
 import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 import lombok.Setter;
+import lombok.ToString;
 import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 
 
 @Getter
+@ToString
 @RequiredArgsConstructor
 public final class SimplePacketWrapper<T extends MinecraftPacket> {
     private final @NotNull T packet;

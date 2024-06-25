@@ -13,6 +13,7 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.server.RegisteredServer;
 import com.velocitypowered.proxy.connection.client.ConnectedPlayer;
 import com.velocitypowered.proxy.network.Connections;
+import io.netty.channel.ChannelPipeline;
 import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.Setter;
@@ -130,11 +131,10 @@ public class VelocityLanguagePlayer implements LanguagePlayer {
     }
 
     public void injectNettyPipeline() {
-        ConnectedPlayer connectedPlayer = (ConnectedPlayer) this.parent;
-        connectedPlayer.getConnection().getChannel().pipeline()
-                .addBefore(Connections.MINECRAFT_DECODER, "triton-custom-decoder", new VelocityNettyDecoder(this));
-        connectedPlayer.getConnection().getChannel().pipeline()
-                .addBefore(Connections.MINECRAFT_ENCODER, "triton-custom-encoder", new VelocityNettyEncoder(this));
+        ChannelPipeline pipeline = ((ConnectedPlayer) this.parent).getConnection().getChannel().pipeline();
+        pipeline
+                .addAfter(Connections.MINECRAFT_DECODER, "triton-custom-decoder", new VelocityNettyDecoder(this))
+                .addAfter(Connections.MINECRAFT_ENCODER, "triton-custom-encoder", new VelocityNettyEncoder(this));
     }
 
     @Override
