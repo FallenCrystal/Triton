@@ -1,9 +1,11 @@
 package com.rexcantor64.triton.placeholderapi;
 
 import com.rexcantor64.triton.SpigotMLP;
+import me.clip.placeholderapi.PlaceholderAPI;
 import me.clip.placeholderapi.expansion.PlaceholderExpansion;
 import me.clip.placeholderapi.expansion.Relational;
 import org.bukkit.entity.Player;
+import org.jetbrains.annotations.NotNull;
 
 public class TritonPlaceholderHook extends PlaceholderExpansion implements Relational {
 
@@ -14,17 +16,17 @@ public class TritonPlaceholderHook extends PlaceholderExpansion implements Relat
     }
 
     @Override
-    public String getIdentifier() {
+    public @NotNull String getIdentifier() {
         return "triton";
     }
 
     @Override
-    public String getAuthor() {
+    public @NotNull String getAuthor() {
         return "Rexcantor64";
     }
 
     @Override
-    public String getVersion() {
+    public @NotNull String getVersion() {
         return triton.getLoader().getDescription().getVersion();
     }
 
@@ -34,10 +36,18 @@ public class TritonPlaceholderHook extends PlaceholderExpansion implements Relat
     }
 
     @Override
-    public String onPlaceholderRequest(Player p, String params) {
-        if (params == null) return null;
-        if (p == null) return triton.getLanguageManager().getTextFromMain(params);
-        return triton.getLanguageManager().getText(triton.getPlayerManager().get(p.getUniqueId()), params);
+    public String onPlaceholderRequest(Player p, @NotNull String params) {
+        final String[] split = params.split("\\{}");
+        final String key = split[0];
+        String[] args = new String[split.length - 1];
+        if (split.length > 1) {
+            for (int i = 1; i < split.length; i++) {
+                args[i - 1] = PlaceholderAPI.setPlaceholders(p, split[i].replace("$", "%"));
+            }
+        }
+        return p == null
+                ? triton.getLanguageManager().getTextFromMain(key, (Object[]) args)
+                : triton.getLanguageManager().getText(triton.getPlayerManager().get(p.getUniqueId()), key, (Object[]) args);
     }
 
     @Override
