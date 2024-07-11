@@ -25,7 +25,6 @@ import com.rexcantor64.triton.utils.ReflectionUtils;
 import lombok.Getter;
 import lombok.SneakyThrows;
 import lombok.val;
-import net.kyori.adventure.text.Component;
 import net.md_5.bungee.api.ChatColor;
 import org.bstats.bukkit.Metrics;
 import org.bstats.charts.SingleLineChart;
@@ -33,6 +32,7 @@ import org.bukkit.Bukkit;
 import org.bukkit.command.CommandMap;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.plugin.Plugin;
+import org.bukkit.plugin.java.JavaPlugin;
 
 import java.io.File;
 import java.util.Objects;
@@ -43,10 +43,6 @@ import java.util.concurrent.ExecutionException;
 
 public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManager> {
 
-    @Getter
-    private final short mcVersion;
-    @Getter
-    private final short minorMcVersion;
     private ProtocolLibListener protocolLibListener;
     @Getter
     private MaterialWrapperManager wrapperManager;
@@ -62,14 +58,15 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     public SpigotTriton(PluginLoader loader) {
         super(new PlayerManager<>(SpigotLanguagePlayer::new), new SpigotBridgeManager());
-        val versionSplit = Bukkit.getServer().getClass().getPackage().getName().split("_");
-        mcVersion = Short.parseShort(versionSplit[1]);
-        minorMcVersion = Short.parseShort(versionSplit[2].substring(1));
         super.loader = loader;
     }
 
     public SpigotPlugin getLoader() {
         return (SpigotPlugin) this.loader;
+    }
+
+    public JavaPlugin getJavaPlugin() {
+        return this.getLoader().getPlugin();
     }
 
     public static SpigotTriton asSpigot() {
@@ -84,11 +81,11 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
         if (!this.isProtocolLibAvailable()) {
             getLogger().logError("Shutting down...");
-            Bukkit.getPluginManager().disablePlugin(getLoader());
+            Bukkit.getPluginManager().disablePlugin(getJavaPlugin());
             return;
         }
 
-        Metrics metrics = new Metrics(getLoader(), 5606);
+        Metrics metrics = new Metrics(getJavaPlugin(), 5606);
         metrics.addCustomChart(new SingleLineChart("active_placeholders",
                 () -> this.getTranslationManager().getTranslationCount()));
 
@@ -98,21 +95,12 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         // Setup commands
         this.commandHandler = new SpigotCommandHandler();
         registerTritonCommand().setExecutor(this.commandHandler);
-        Objects.requireNonNull(getLoader().getCommand("twin")).setExecutor(this.commandHandler);
+        Objects.requireNonNull(getJavaPlugin().getCommand("twin")).setExecutor(this.commandHandler);
         // Setup listeners
-        Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getLoader());
-        Bukkit.getPluginManager().registerEvents(new BukkitListener(), getLoader());
+        Bukkit.getPluginManager().registerEvents(guiManager = new GuiManager(), getJavaPlugin());
+        Bukkit.getPluginManager().registerEvents(new BukkitListener(), getJavaPlugin());
 
-        // Setup ProtocolLib
-        if (getConfig().isAsyncProtocolLib()) {
-            val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
-            asyncManager.registerAsyncHandler(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC)).start();
-            asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
-            ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
-        } else {
-            ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC));
-            ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
-        }
+        registerProtocolLibListeners();
 
         if (getConfig().isBungeecord()) {
             if (!isSpigotProxyMode() && !isPaperProxyMode()) {
@@ -122,9 +110,9 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
                 getLogger().logError("DANGER! DANGER! DANGER!");
             }
 
-            val messenger = getLoader().getServer().getMessenger();
-            messenger.registerOutgoingPluginChannel(getLoader(), "triton:main");
-            messenger.registerIncomingPluginChannel(getLoader(), "triton:main", getBridgeManager());
+            val messenger = getJavaPlugin().getServer().getMessenger();
+            messenger.registerOutgoingPluginChannel(getJavaPlugin(), "triton:main");
+            messenger.registerIncomingPluginChannel(getJavaPlugin(), "triton:main", getBridgeManager());
         }
 
         if (Bukkit.getPluginManager().isPluginEnabled("PlaceholderAPI")) {
@@ -137,11 +125,34 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         }
     }
 
+    private void registerProtocolLibListeners() {
+        if (getConfig().isAsyncProtocolLib()) {
+            protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC);
+        } else {
+            protocolLibListener = new ProtocolLibListener(this, HandlerFunction.HandlerType.ASYNC, HandlerFunction.HandlerType.SYNC);
+        }
+
+        // Use delayed task to try to be the last registered listener and therefore have the final say in packets
+        Bukkit.getScheduler().scheduleSyncDelayedTask(getJavaPlugin(), () -> {
+            if (getConfig().isAsyncProtocolLib()) {
+                val asyncManager = ProtocolLibrary.getProtocolManager().getAsynchronousManager();
+                asyncManager.registerAsyncHandler(protocolLibListener).start();
+                asyncManager.registerAsyncHandler(new MotdPacketHandler()).start();
+                ProtocolLibrary.getProtocolManager().addPacketListener(new ProtocolLibListener(this, HandlerFunction.HandlerType.SYNC));
+            } else {
+                ProtocolLibrary.getProtocolManager().addPacketListener(protocolLibListener);
+                ProtocolLibrary.getProtocolManager().addPacketListener(new MotdPacketHandler());
+            }
+            getLogger().logInfo("Registered ProtocolLib listeners");
+        }, 1L);
+
+    }
+
     @SneakyThrows
     private PluginCommand registerTritonCommand() {
         val constructor = PluginCommand.class.getDeclaredConstructor(String.class, Plugin.class);
         constructor.setAccessible(true);
-        val command = (PluginCommand) constructor.newInstance("triton", getLoader());
+        val command = (PluginCommand) constructor.newInstance("triton", getJavaPlugin());
 
         command.setAliases(getConfig().getCommandAliases());
         command.setDescription("The main command of Triton.");
@@ -163,7 +174,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         if (refreshTaskId != -1) Bukkit.getScheduler().cancelTask(refreshTaskId);
         if (getConfig().getConfigAutoRefresh() <= 0) return;
         refreshTaskId = Bukkit.getScheduler()
-                .scheduleSyncDelayedTask(getLoader(), this::reload, getConfig().getConfigAutoRefresh() * 20L);
+                .scheduleSyncDelayedTask(getJavaPlugin(), this::reload, getConfig().getConfigAutoRefresh() * 20L);
     }
 
     /**
@@ -187,10 +198,12 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
         }
 
         try {
-            MinecraftVersion ignore = MinecraftVersion.v1_20_4;
+            // Field known to exist in build 717 (commit e726f6e)
+            boolean ignore = MinecraftVersion.v1_21_0.atOrAbove();
         } catch (NoSuchFieldError ignore) {
-            // Triton requires ProtocolLib 5.2.0 or later
-            getLogger().logError("ProtocolLib 5.2.0 or later is required! Older versions of ProtocolLib will only partially work or not work at all, and are therefore not recommended.");
+            // Triton requires ProtocolLib 5.3.0 or later
+            getLogger().logError("ProtocolLib 5.3.0 or later is required! Older versions of ProtocolLib will only partially work or not work at all, and are therefore not recommended.");
+            getLogger().logError("It is likely that you need the latest dev version, which you can download at https://triton.rexcantor64.com/protocollib");
             getLogger().logError("If you want to enable the plugin anyway, add `i-know-what-i-am-doing: true` to Triton's config.yml.");
             return false;
         }
@@ -203,7 +216,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
     }
 
     public File getDataFolder() {
-        return getLoader().getDataFolder();
+        return getJavaPlugin().getDataFolder();
     }
 
     public SpigotBridgeManager getBridgeManager() {
@@ -240,7 +253,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     @Override
     public String getVersion() {
-        return getLoader().getDescription().getVersion();
+        return getJavaPlugin().getDescription().getVersion();
     }
 
     @Override
@@ -250,7 +263,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
 
     @Override
     public void runAsync(Runnable runnable) {
-        Bukkit.getScheduler().runTaskAsynchronously(getLoader(), runnable);
+        Bukkit.getScheduler().runTaskAsynchronously(getJavaPlugin(), runnable);
     }
 
     public <T> Optional<T> callSync(Callable<T> callable) {
@@ -258,7 +271,7 @@ public class SpigotTriton extends Triton<SpigotLanguagePlayer, SpigotBridgeManag
             if (Bukkit.getServer().isPrimaryThread()) {
                 return Optional.ofNullable(callable.call());
             }
-            return Optional.ofNullable(Bukkit.getScheduler().callSyncMethod(getLoader(), callable).get());
+            return Optional.ofNullable(Bukkit.getScheduler().callSyncMethod(getJavaPlugin(), callable).get());
         } catch (InterruptedException | ExecutionException e) {
             return Optional.empty();
         } catch (Exception e) {

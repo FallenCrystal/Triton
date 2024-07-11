@@ -167,7 +167,7 @@ public class SpigotBridgeManager implements PluginMessageListener, BridgeManager
                 } finally {
                     Triton.get().getLanguageManager().setup();
                     Triton.get().getTranslationManager().setup();
-                    Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getLoader(), () -> Triton.get()
+                    Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getJavaPlugin(), () -> Triton.get()
                             .refreshPlayers(), 10L);
                 }
             } else if (action == BridgeSerializer.ActionP2S.SEND_PLAYER_LANGUAGE.getKey()) {
@@ -176,7 +176,7 @@ public class SpigotBridgeManager implements PluginMessageListener, BridgeManager
                 val lang = Triton.get().getLanguageManager().getLanguageByNameOrDefault(in.readUTF());
                 val languagePlayer = (SpigotLanguagePlayer) SpigotTriton.asSpigot().getPlayerManager().get(player.getUniqueId());
                 languagePlayer.setProxyUniqueId(uuid);
-                Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getLoader(),
+                Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getJavaPlugin(),
                         () -> languagePlayer.setLang(lang, false),
                         10L);
             } else if (action == BridgeSerializer.ActionP2S.SEND_COMMAND_AS_CONSOLE.getKey()) {
@@ -198,7 +198,7 @@ public class SpigotBridgeManager implements PluginMessageListener, BridgeManager
 
                     Triton.get().getLanguageManager().setup();
                     Triton.get().getTranslationManager().setup();
-                    Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getLoader(), () -> Triton.get()
+                    Bukkit.getScheduler().runTaskLater(SpigotTriton.asSpigot().getJavaPlugin(), () -> Triton.get()
                             .refreshPlayers(), 10L);
                 });
             } else if (action == BridgeSerializer.ActionP2S.FORWARD_TRITON_COMMAND.getKey()) {
@@ -232,7 +232,7 @@ public class SpigotBridgeManager implements PluginMessageListener, BridgeManager
         out.writeUTF(lp.getProxyUniqueId().toString());
         out.writeUTF(lp.getLang().getName());
         lp.toBukkit().ifPresent(player ->
-                player.sendPluginMessage(SpigotTriton.asSpigot().getLoader(), "triton:main", out.toByteArray())
+                player.sendPluginMessage(SpigotTriton.asSpigot().getJavaPlugin(), "triton:main", out.toByteArray())
         );
     }
 
@@ -246,7 +246,7 @@ public class SpigotBridgeManager implements PluginMessageListener, BridgeManager
         out.writeBoolean(key != null); // Set (true) or Remove (false)
         if (key != null) // Set only
             out.writeUTF(key);
-        p.sendPluginMessage(SpigotTriton.asSpigot().getLoader(), "triton:main", out.toByteArray());
+        p.sendPluginMessage(SpigotTriton.asSpigot().getJavaPlugin(), "triton:main", out.toByteArray());
     }
 
     @Override
