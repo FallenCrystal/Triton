@@ -51,6 +51,7 @@ public class EntitiesPacketHandler extends PacketHandler {
 
     private final DataWatcherHandler dataWatcherHandler;
     private final DataValueHandler dataValueHandler;
+    private final int textDisplaysTextIndex;
 
     public EntitiesPacketHandler() {
         if (MinecraftVersion.AQUATIC_UPDATE.atOrAbove()) { // 1.13+
@@ -64,6 +65,12 @@ public class EntitiesPacketHandler extends PacketHandler {
             this.dataWatcherHandler = new DataWatcherHandler1_8();
         }
         this.dataValueHandler = new DataValueHandler();
+
+        if (MinecraftVersion.CONFIG_PHASE_PROTOCOL_UPDATE.atOrAbove()) { // 1.20.2
+            textDisplaysTextIndex = 23;
+        } else {
+            textDisplaysTextIndex = 22;
+        }
     }
 
     /**
@@ -362,8 +369,8 @@ public class EntitiesPacketHandler extends PacketHandler {
                                 )
                         ).orElse(oldObject)
                 );
-            } else if (oldObject.getIndex() == 23) {
-                // Index 23 is "Text" of type "Chat"
+            } else if (oldObject.getIndex() == textDisplaysTextIndex) {
+                // Index 22/23 is "Text" of type "Chat"
                 // https://wiki.vg/Entity_metadata#Text_Display
                 // Used to translate text display entities
                 newWatchableObjects.add(
@@ -1346,11 +1353,11 @@ public class EntitiesPacketHandler extends PacketHandler {
                 payload = WrappedChatComponent.fromText("").getHandle();
             }
 
-            // Display name has: index 23 and type chat
+            // Display name has: index 22/23 and type chat
             // https://wiki.vg/Entity_metadata#Text_Display
             return Optional.of(
                     new WrappedDataValue(
-                            23,
+                            textDisplaysTextIndex,
                             WrappedDataWatcher.Registry.getChatComponentSerializer(false),
                             payload
                     )

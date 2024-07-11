@@ -11,6 +11,9 @@ String pluginAuthor = project.property("pluginAuthor")
 String pluginApiVersion = project.property("pluginApiVersion")
 String pluginName = project.property("pluginName")
 
+// Plugins that also hook into ProtocolLib and therefore have to be loaded before Triton
+List conflictingPlugins = ['Citizens']
+
 apply plugin: 'com.github.johnrengelman.shadow'
 apply plugin: 'net.minecrell.plugin-yml.bukkit'
 apply plugin: 'net.minecrell.plugin-yml.bungee'
@@ -18,7 +21,7 @@ group 'com.rexcantor64.triton'
 
 allprojects {
     apply plugin: 'java'
-    version '3.10.0'
+    version '3.10.1'
     sourceCompatibility = 1.8
     targetCompatibility = 1.8
     repositories {
@@ -72,8 +75,8 @@ bukkit {
     main = 'com.rexcantor64.triton.plugin.SpigotPlugin'
     apiVersion = pluginApiVersion
 
-    depend = ['ProtocolLib', "packetevents"]
-    softDepend = ['PlaceholderAPI']
+    depend = ['ProtocolLib']
+    softDepend = ['PlaceholderAPI', 'packetevents'] + conflictingPlugins
 
     commands {
         twin {

@@ -16,6 +16,7 @@ import com.comphenix.protocol.wrappers.BukkitConverters;
 import com.comphenix.protocol.wrappers.EnumWrappers;
 import com.comphenix.protocol.wrappers.WrappedChatComponent;
 import com.rexcantor64.triton.player.SpigotLanguagePlayer;
+import lombok.Getter;
 import lombok.val;
 import net.md_5.bungee.api.chat.BaseComponent;
 import net.md_5.bungee.api.chat.TranslatableComponent;
@@ -225,7 +226,14 @@ public class BossBarPacketHandler extends PacketHandler {
     /**
      * BossBar packet Action wrapper
      */
-    public enum Action {
-        ADD, REMOVE, UPDATE_PCT, UPDATE_NAME, UPDATE_STYLE, UPDATE_PROPERTIES
+    @Getter
+    public enum Action implements EnumWrappers.AliasedEnum {
+        ADD, REMOVE, UPDATE_PROGRESS("UPDATE_PCT"), UPDATE_NAME, UPDATE_STYLE, UPDATE_PROPERTIES;
+
+        private final String[] aliases;
+
+        Action(String... aliases) {
+            this.aliases = aliases;
+        }
     }
 }
