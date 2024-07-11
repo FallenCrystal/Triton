@@ -95,6 +95,7 @@ public class MainConfig implements TritonConfig {
     private boolean preventPlaceholdersInChat;
     private int maxPlaceholdersInMessage;
     private boolean asyncProtocolLib;
+    private boolean dontUsePE;
 
     private String storageType = "local";
     private String serverName;
@@ -179,6 +180,7 @@ public class MainConfig implements TritonConfig {
         this.logLevel = section.getInt("log-level", 0);
         this.configAutoRefresh = section.getInt("config-auto-refresh-interval", -1);
         this.asyncProtocolLib = section.getBoolean("experimental-async-protocol-lib", false);
+        this.dontUsePE = section.getBoolean("dont-use-pe", false);
         Configuration languageCreation = section.getSection("language-creation");
         setupLanguageCreation(languageCreation);
 

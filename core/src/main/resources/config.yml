@@ -265,3 +265,4 @@ language-creation:
   # This prevents infinite loops where the 404 message has a missing placeholder.
   # Default is 10
   max-placeholders-in-message: 10
+dont-use-pe: false

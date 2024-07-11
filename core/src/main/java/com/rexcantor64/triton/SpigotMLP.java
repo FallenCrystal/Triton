@@ -90,7 +90,7 @@ public class SpigotMLP extends Triton {
         Bukkit.getPluginManager().registerEvents(new BukkitListener(), getLoader());
 
         // Setup PacketEvents/ProtocolLib
-        if (Bukkit.getPluginManager().isPluginEnabled("packetevents")) {
+        if (Bukkit.getPluginManager().isPluginEnabled("packetevents") && !getConf().isDontUsePE()) {
             getLogger().logWarning("Using PacketEvents for handle. Some features may break.");
             PacketEvents.getAPI().getEventManager().registerListener(new PacketEventsHandler(this));
         } else {

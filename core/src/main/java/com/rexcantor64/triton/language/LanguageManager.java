@@ -26,6 +26,7 @@ import java.util.regex.Pattern;
 public class LanguageManager implements com.rexcantor64.triton.api.language.LanguageManager {
 
     private List<Language> languages = new ArrayList<>();
+    @Getter
     private Language mainLanguage;
     private HashMap<String, HashMap<String, String>> textItems = new HashMap<>();
     private HashMap<String, HashMap<SignLocation, String[]>> signItems = new HashMap<>();
@@ -194,10 +195,6 @@ public class LanguageManager implements com.rexcantor64.triton.api.language.Lang
         return new ArrayList<>(languages);
     }
 
-    public Language getMainLanguage() {
-        return mainLanguage;
-    }
-
     public void setup() {
         Triton.get().getLogger().logDebug("Setting up language manager...");
 
@@ -232,7 +229,6 @@ public class LanguageManager implements com.rexcantor64.triton.api.language.Lang
                 if (item instanceof LanguageText) {
                     val itemText = (LanguageText) item;
                     if (filterItems && !itemText.belongsToServer(collection.getMetadata(), serverName)) continue;
-
                     if (itemText.getPatterns() != null) {
                         itemText.getPatterns().forEach((pattern) -> matches.put(Pattern.compile(pattern), itemText));
                         itemText.generateRegexStrings();
