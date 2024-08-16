@@ -6,6 +6,7 @@ import com.github.retrooper.packetevents.event.PacketListenerPriority;
 import com.github.retrooper.packetevents.event.SimplePacketListenerAbstract;
 import com.github.retrooper.packetevents.event.simple.PacketPlaySendEvent;
 import com.github.retrooper.packetevents.event.simple.PacketStatusSendEvent;
+import com.github.retrooper.packetevents.protocol.chat.ChatTypes;
 import com.github.retrooper.packetevents.protocol.nbt.NBTCompound;
 import com.github.retrooper.packetevents.protocol.nbt.NBTString;
 import com.github.retrooper.packetevents.protocol.packettype.PacketType;
@@ -55,29 +56,39 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
                     this::handleSystemChat
             ),
             new Handler<>(
+                    PacketType.Play.Server.CHAT_MESSAGE,
+                    WrapperPlayServerChatMessage::new,
+                    this::handleServerChat
+            ),
+            new Handler<>(
                     PacketType.Play.Server.PLAYER_LIST_HEADER_AND_FOOTER,
                     WrapperPlayServerPlayerListHeaderAndFooter::new,
-                    Handler.WrapperHandler.of(this::handlePlayerListHeaderFooter)
+                    this::handlePlayerListHeaderFooter
             ),
             new Handler<>(
                     PacketType.Play.Server.OPEN_WINDOW,
                     WrapperPlayServerOpenWindow::new,
-                    Handler.WrapperHandler.of(this::handleOpenWindow)
+                    this::handleOpenWindow
             ),
             new Handler<>(
                     PacketType.Play.Server.DISCONNECT,
                     WrapperPlayServerDisconnect::new,
-                    Handler.WrapperHandler.of(this::handleDisconnect)
+                    this::handleDisconnect
             ),
             new Handler<>(
                     PacketType.Play.Server.TEAMS,
                     WrapperPlayServerTeams::new,
-                    Handler.WrapperHandler.of(this::handleScoreboardTeam)
+                    this::handleScoreboardTeam
             ),
             new Handler<>(
                     PacketType.Play.Server.BLOCK_ENTITY_DATA,
                     WrapperPlayServerBlockEntityData::new,
-                    Handler.WrapperHandler.of(this::handleTileData)
+                    this::handleTileData
+            ),
+            new Handler<>(
+                    PacketType.Play.Server.ACTION_BAR,
+                    WrapperPlayServerActionBar::new,
+                    this::handleActionBar
             )
     );
 
@@ -86,6 +97,14 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
         private final @NotNull PacketType.Play.Server packetType;
         private final @NotNull Function<PacketPlaySendEvent, W> wrapperFunction;
         private final @NotNull WrapperHandler<W> wrapperHandler;
+
+        public Handler(
+                final @NotNull PacketType.Play.Server packetType,
+                final @NotNull Function<PacketPlaySendEvent, W> wrapperFunction,
+                final @NotNull BiConsumer<W, SpigotLanguagePlayer> handler
+        ) {
+            this(packetType, wrapperFunction, (event, wrapper, languagePlayer) -> handler.accept(wrapper, languagePlayer));
+        }
 
         public boolean handle(final @NotNull PacketPlaySendEvent event, final @NotNull SpigotLanguagePlayer languagePlayer) {
             if (event.getPacketType() == packetType) {
@@ -96,16 +115,13 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
             return false;
         }
 
+        @FunctionalInterface
         interface WrapperHandler<W extends PacketWrapper<?>> {
             void handle(
                     final @NotNull PacketPlaySendEvent event,
                     final @NotNull W wrapper,
                     final @NotNull SpigotLanguagePlayer languagePlayer
             );
-
-            static <W extends PacketWrapper<?>> WrapperHandler<W> of(final @NotNull BiConsumer<W, SpigotLanguagePlayer> handler) {
-                return (event, wrapper, languagePlayer) -> handler.accept(wrapper, languagePlayer);
-            }
         }
     }
 
@@ -190,7 +206,6 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
         wrapper.setComponent(gson.toJsonTree(motdInfo).getAsJsonObject());
     }
 
-    // https://github.com/retrooper/packetevents/pull/844
     public void handleSystemChat(
             final @NotNull PacketPlaySendEvent event,
             final @NotNull WrapperPlayServerSystemChatMessage wrapper,
@@ -198,13 +213,33 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
     ) {
         val ab = wrapper.isOverlay();
         if ((ab && !main.getConfig().isActionbars()) || (!ab && !main.getConfig().isChat())) return;
-        final Optional<Component> component = translate(
+        val component = translate(
                 wrapper.getMessage(),
                 ab ? main.getConf().getActionbarSyntax() : main.getConf().getChatSyntax(),
                 languagePlayer
         );
         if (component.isPresent()) {
             wrapper.setMessage(component.get());
+        } else {
+            event.setCancelled(true);
+        }
+    }
+
+    @SuppressWarnings("deprecation")
+    public void handleServerChat(
+            final @NotNull PacketPlaySendEvent event,
+            final @NotNull WrapperPlayServerChatMessage wrapper,
+            final @NotNull SpigotLanguagePlayer languagePlayer
+    ) {
+        val ab = wrapper.getMessage().getType() == ChatTypes.GAME_INFO;
+        if ((ab && !main.getConfig().isActionbars()) || (!ab && !main.getConfig().isChat())) return;
+        val component = translate(
+                wrapper.getMessage().getChatContent(),
+                ab ? main.getConf().getActionbarSyntax() : main.getConf().getChatSyntax(),
+                languagePlayer
+        );
+        if (component.isPresent()) {
+            wrapper.getMessage().setChatContent(component.get());
         } else {
             event.setCancelled(true);
         }
@@ -283,8 +318,19 @@ public final class PacketEventsHandler extends SimplePacketListenerAbstract {
         final NBTString stringTag = nbt.getStringTagOrNull("type");
         if (stringTag == null) return;
         final String type = stringTag.getValue();
-        if (SIGN_TYPE.stream().anyMatch(it -> it.equals(type))) {
-            // TODO
+    }
+
+    private void handleActionBar(
+            final @NotNull PacketPlaySendEvent event,
+            final @NotNull WrapperPlayServerActionBar wrapper,
+            final @NotNull SpigotLanguagePlayer languagePlayer
+    ) {
+        if (main.getConf().isActionbars()) {
+            val component = translate(
+                    wrapper.getActionBarText(),
+                    main.getConf().getActionbarSyntax(),
+                    languagePlayer
+            );
         }
     }
 }
